@@ -1,12 +1,110 @@
 #!/bin/sh
 
-indent() {
-  sed -u 's/^/       /'
+##
+## From heroku/heroku-buildpack-clojure
+##
+
+# fail fast
+set -e
+
+# parse args
+export BUILD_DIR=$1
+export CACHE_DIR=$2
+export ENV_DIR=$3
+
+# Load config vars into environment
+export_env_dir() {
+  env_dir=$1
+  whitelist_regex=${2:-''}
+  blacklist_regex=${3:-'^(PATH|GIT_DIR|CPATH|CPPATH|LD_PRELOAD|LIBRARY_PATH|JAVA_OPTS)$'}
+  if [ -d "$env_dir" ]; then
+    for e in $(ls $env_dir); do
+      echo "$e" | grep -E "$whitelist_regex" | grep -qvE "$blacklist_regex" &&
+      export "$e=$(cat $env_dir/$e)"
+      :
+    done
+  fi
 }
 
-echo "-----> Found an init.el file."
+export_env_dir $ENV_DIR
 
-# TODO: cache this
-echo "Downloading Emacs 24 pretest from github..." | indent
-curl -L -s -o $1/emacs.tar.gz https://github.com/downloads/nicferrier/heroku-buildpack-emacs/static-emacs.tar.gz
-echo "...done" | indent
+# Load common JVM functionality from https://github.com/heroku/heroku-buildpack-jvm-common
+JVM_COMMON_BUILDPACK=${JVM_COMMON_BUILDPACK:-https://codon-buildpacks.s3.amazonaws.com/buildpacks/heroku/jvm-common.tgz}
+mkdir -p /tmp/jvm-common
+curl --silent --location $JVM_COMMON_BUILDPACK | tar xzm -C /tmp/jvm-common --strip-components=1
+. /tmp/jvm-common/bin/util
+. /tmp/jvm-common/bin/java
+
+# Install JDK
+javaVersion=$(detect_java_version ${BUILD_DIR})
+echo -n "-----> Installing OpenJDK ${javaVersion}..."
+install_java ${BUILD_DIR} ${javaVersion}
+jdk_overlay ${BUILD_DIR}
+echo "done"
+
+BOOT_SH_URL="https://github.com/boot-clj/boot/releases/download/2.0.0-rc8/boot.sh"
+BOOT_SH_CACHE_PATH="$CACHE_DIR/boot"
+BOOT_SH_SLUG_PATH="$BUILD_DIR/boot"
+
+if [ ! -r "$BOOT_SH_CACHE_PATH" ]; then
+    echo "-----> Installing Boot 2.0.0-rc8 from github..."
+    echo "       Downloading boot.sh"
+    curl -L -s -o "$BOOT_SH_CACHE_PATH" "$BOOT_SH_URL"
+    chmod a+x boot
+    echo "       ...done"
+else
+    echo "-----> Using cached Boot"
+fi
+
+cp "$BOOT_SH_CACHE_PATH" "$BOOT_SH_SLUG_PATH"
+
+# unpack existing cache
+CACHE_STORE_DIR=$CACHE_DIR"/.m2"
+CACHE_TARGET_DIR=$BUILD_DIR"/.m2"
+rm -rf $CACHE_TARGET_DIR
+if [ -d $CACHE_STORE_DIR ]; then
+  cp -r $CACHE_STORE_DIR $CACHE_TARGET_DIR
+else
+  mkdir -p $CACHE_TARGET_DIR
+fi
+
+echo "-----> Building with Boot"
+
+# Calculate build command
+if [ "$BUILD_COMMAND" = "" ]; then
+    if [ -x $BUILD_DIR/bin/build ]; then
+        echo "       Found bin/build; running it instead of default boot invocation."
+        BUILD_COMMAND=bin/build
+    fi
+fi
+
+if [ "$BUILD_COMMAND" = "" ]; then
+    echo "      No BUILD_COMMAND found, skipping to Procfile"
+else
+    echo "       Running: $BUILD_COMMAND"
+    cd $BUILD_DIR
+    $BUILD_COMMAND 2>&1 | sed -u 's/^/       /'
+fi
+if [ "${PIPESTATUS[*]}" != "0 0" ]; then
+  echo " !     Failed to build."
+  exit 1
+fi
+
+# populate profile.d
+PROFILE_PATH="$BUILD_DIR/.profile.d/clojure.sh"
+mkdir -p $(dirname $PROFILE_PATH)
+
+echo "export JVM_OPTS=\"\${JVM_OPTS:--Xmx400m -Dfile.encoding=UTF-8}\"" >> $PROFILE_PATH
+echo 'export PATH="$HOME/.jdk/bin:$PATH"' >> $PROFILE_PATH
+
+# Procfile
+if [ ! -r $BUILD_DIR/Procfile ]; then
+    echo " !   No Procfile found; aborting"
+    exit 1
+fi
+
+# repack cache with new assets
+rm -rf $CACHE_STORE_DIR
+mkdir -p $(dirname $CACHE_STORE_DIR)
+cp -r $CACHE_TARGET_DIR $CACHE_STORE_DIR
+
