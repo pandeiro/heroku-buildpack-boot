@@ -28,6 +28,26 @@ export_env_dir() {
 
 export_env_dir $ENV_DIR
 
+# Install Emacs24
+echo "Downloading Emacs 24 pretest from github..." | indent
+curl -L -s -o $1/emacs.tar.gz https://github.com/downloads/nicferrier/heroku-buildpack-emacs/static-emacs.tar.gz
+echo "...done" | indent
+
+# Install Org-Mode
+mkdir ~/elisp
+git clone git://orgmode.org/org-mode.git ~/elisp/org-mode
+pushd ~/elisp/org-mode && make autoloads
+popd
+
+# tangle org files
+if [ ! -r "$ORG_BUILD_FILE" ]; then
+    echo " !   No ORG_BUILD_FILE set; aborting"
+    exit 1
+fi
+echo "-----> Tangling org files..."
+$BUILD_DIR/org/tangle.sh $BUILD_DIR/$ORG_BUILD_FILE
+echo "       ...done"
+
 # Load common JVM functionality from https://github.com/heroku/heroku-buildpack-jvm-common
 JVM_COMMON_BUILDPACK=${JVM_COMMON_BUILDPACK:-https://codon-buildpacks.s3.amazonaws.com/buildpacks/heroku/jvm-common.tgz}
 mkdir -p /tmp/jvm-common
@@ -107,4 +127,3 @@ fi
 rm -rf $CACHE_STORE_DIR
 mkdir -p $(dirname $CACHE_STORE_DIR)
 cp -r $CACHE_TARGET_DIR $CACHE_STORE_DIR
-
