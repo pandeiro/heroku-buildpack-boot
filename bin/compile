@@ -28,9 +28,20 @@ export_env_dir() {
 
 export_env_dir $ENV_DIR
 
+# Install Emacs24
+echo "Downloading Emacs 24 pretest from github..." | indent
+curl -L -s -o $1/emacs.tar.gz https://github.com/downloads/nicferrier/heroku-buildpack-emacs/static-emacs.tar.gz
+echo "...done" | indent
+
+# Install Org-Mode
+mkdir ~/elisp
+git clone git://orgmode.org/org-mode.git ~/elisp/org-mode
+pushd ~/elisp/org-mode && make autoloads
+popd
+
 # tangle org files
-if [ ! -r $BUILD_DIR/$ORG_BUILD_FILE ]; then
-    echo " !   No ORG_BUILD_FILE found; aborting"
+if [ ! -r "$ORG_BUILD_FILE" ]; then
+    echo " !   No ORG_BUILD_FILE set; aborting"
     exit 1
 fi
 echo "-----> Tangling org files..."
