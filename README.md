@@ -1,11 +1,6 @@
-# Heroku buildpack: Clojure / Boot
+# Heroku buildpack: Clojure / Boot / Org-Babel
 
-This is a Heroku buildpack for use with Clojure projects that use Boot.
+This is a Heroku buildpack for use with Clojure projects that use Boot
+and are written in a literate programming style with Org-Babel.
 
-First make sure you have at LEAST heroku gem version 2.11.0+
-
-
-## Usage
-
-See the [Clojure buildpack](https://github.com/heroku/heroku-buildpack-clojure) for details.
-
+Based on https://github.com/pandeiro/heroku-buildpack-boot
