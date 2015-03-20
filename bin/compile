@@ -42,12 +42,20 @@ install_java ${BUILD_DIR} ${javaVersion}
 jdk_overlay ${BUILD_DIR}
 echo "done"
 
-BOOT_SH_URL="https://github.com/boot-clj/boot/releases/download/2.0.0-rc8/boot.sh"
+get_latest_boot_version() {
+  curl -s https://api.github.com/repos/boot-clj/boot/releases \
+    | grep 'download_url.*boot\.sh' \
+    | head -1 \
+    | awk -F '/' '{print $(NF-1)}'
+}
+
+BOOT_SH_VERSION=$(get_latest_boot_version)
+BOOT_SH_URL="https://github.com/boot-clj/boot/releases/download/${BOOT_SH_VERSION}/boot.sh"
 BOOT_SH_CACHE_PATH="$CACHE_DIR/boot"
 BOOT_SH_SLUG_PATH="$BUILD_DIR/boot"
 
 if [ ! -r "$BOOT_SH_CACHE_PATH" ]; then
-    echo "-----> Installing Boot 2.0.0-rc8 from github..."
+    echo "-----> Installing Boot ${BOOT_SH_VERSION} from github..."
     echo "       Downloading boot.sh"
     curl -L -s -o "$BOOT_SH_CACHE_PATH" "$BOOT_SH_URL"
     chmod a+x boot
