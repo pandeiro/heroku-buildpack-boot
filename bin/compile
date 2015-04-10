@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# bin/compile <build-dir> <cache-dir>
 
 ##
 ## From heroku/heroku-buildpack-clojure
@@ -54,11 +55,11 @@ BOOT_SH_URL="https://github.com/boot-clj/boot/releases/download/${BOOT_SH_VERSIO
 BOOT_SH_CACHE_PATH="$CACHE_DIR/boot"
 BOOT_SH_SLUG_PATH="$BUILD_DIR/boot"
 
-if [ ! -r "$BOOT_SH_CACHE_PATH" ]; then
+if [ ! -x "$BOOT_SH_CACHE_PATH" ]; then
     echo "-----> Installing Boot ${BOOT_SH_VERSION} from github..."
     echo "       Downloading boot.sh"
     curl -L -s -o "$BOOT_SH_CACHE_PATH" "$BOOT_SH_URL"
-    chmod a+x boot
+    chmod a+x "$BOOT_SH_CACHE_PATH"
     echo "       ...done"
 else
     echo "-----> Using cached Boot"
